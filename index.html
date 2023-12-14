@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="tr">
+	<head>
+		<meta charset="utf-8" />
+		<title>WebGL Demo</title>
+		<style>body{font-family:monospace;}</style>
+		<script src="gl-matrix-min.js"></script>
+	</head>
+	<body>
+	
+		<canvas id="glCanvas" width="500" height="800" style="float:left;margin-right:10px;"></canvas>
+		
+		<table cellpadding="5" cellspacing="0" border="1">
+			<tr>
+				<td>Mouse Click</td>
+				<td id="mouse_click"></td>
+			</tr>
+			<tr>
+				<td>Mouse Coordinate</td>
+				<td id="mouse_coordinate"></td>
+			</tr>
+			<tr>
+				<td>Tahta Coordinate</td>
+				<td id="tahta_coordinate"></td>
+			</tr>
+			<tr>
+				<td>Puzzle 1 Coordinate</td>
+				<td id="puzzle_1_coordinate"></td>
+			</tr>
+			<tr>
+				<td>Puzzle 2 Coordinate</td>
+				<td id="puzzle_2_coordinate"></td>
+			</tr>
+			<tr>
+				<td>Puzzle 3 Coordinate</td>
+				<td id="puzzle_3_coordinate"></td>
+			</tr>
+			<tr>
+				<td>Select Puzzle Coordinate</td>
+				<td id="select_puzzle_coordinate"></td>
+			</tr>
+		</table>
+		
+			<br />
+		
+		<table cellpadding="5" cellspacing="0" border="1" id="board"></table>
+		
+		<br />
+		
+		<table cellpadding="5" cellspacing="0" border="1">
+			<tr>
+				<td id="puzzle_1"></td>
+				<td id="puzzle_2"></td>
+				<td id="puzzle_3"></td>
+			</tr>
+		</table>
+		
+		<script type="x-shader/x-vertex" id="terrain-vertex-shader">
+		attribute vec2 aVertexPosition;
+		attribute vec3 aVertexColor;
+		uniform mat4 projectionMatrix;
+		uniform mat4 translationMatrix;
+		
+        varying vec3 fColor;
+		void main() {
+			fColor = aVertexColor;
+			gl_Position = projectionMatrix * translationMatrix * vec4(aVertexPosition, 0.0, 1.0);
+			gl_PointSize = 2.5;
+		}
+		</script>
+		<script type="x-shader/x-fragment" id="terrain-fragment-shader">
+        precision mediump float;
+        varying vec3 fColor;
+		void main() {
+			gl_FragColor = vec4(fColor, 1.0);
+		}
+		</script>
+
+		<script type="text/javascript" src="webgl.js"></script>
+		<script type="text/javascript" src="puzzle.js"></script>
+		<script type="text/javascript" src="program.js"></script>
+	
+		<script type="text/javascript">
+		const canvas = document.querySelector("#glCanvas");
+		const gl = canvas.getContext("experimental-webgl");
+		const extensions = gl.getSupportedExtensions();
+
+
+		var puzzle = new Tetrimino(shapes, colors, board_subdiv);
+		var board = puzzle.create();
+
+		//const m4 = twgl.m4;
+
+		var row = 9, col = 9, grid = 50;
+
+		// Tetris oyunu tahtası Ön Plan(Çizim)
+		var OBjPosition = board.position;
+		var OBjColor = board.color;
+
+
+		let vertexBuffer = gl.createBuffer();
+		gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(OBjPosition), gl.STATIC_DRAW);
+
+
+        // Capture mouse coordinates.
+
+        let TahtaX = 0;
+        let TahtaY = 0;
+		
+        let BlockPuzzle_1_X = 0, BlockPuzzle_2_X = 0, BlockPuzzle_3_X = 0;
+        let BlockPuzzle_1_Y = 0, BlockPuzzle_2_Y = 0, BlockPuzzle_3_Y = 0;
+		
+        let TahtaPozisyonX = ((canvas.width-(grid*(row-1)))/2);
+        let TahtaPozisyonY = ((canvas.height-(grid*(row-1)))/2)+80;
+
+        let BlokPozisyonX = ((canvas.width-(grid*(row-1)))/2);
+        let BlokPozisyonY = ((canvas.height-(grid*(row-1)))/2)-30;
+
+        //let NewBlockPozisyonX = ((canvas.width-(grid*(row-1)))/2);
+        //let NewBlockPozisyonY = ((canvas.height-(grid*(row-1)))/2)-30;
+
+		const projectionMatrix = mat4.create();
+		
+		// MOUSE CONTROL
+		var mouse_click = false;
+		var mouseX = 0;
+		var mouseY = 0;
+		
+		var BlockPuzzle_X = 0;
+		var BlockPuzzle_Y = 0;
+
+        canvas.addEventListener('mousedown', (event) => {
+			mouse_click = true;
+			
+			mouseX = event.clientX - canvas.getBoundingClientRect().left;
+			mouseY = canvas.height - (event.clientY - canvas.getBoundingClientRect().top);
+			
+			TahtaX = (mouseX - TahtaPozisyonX); // 50 > translate fark
+			TahtaY = (mouseY - TahtaPozisyonY); // 50 > translate fark
+			
+			BlockPuzzle_X = (mouseX-BlokPozisyonX);
+			BlockPuzzle_Y = (mouseY-BlokPozisyonY)*-1;
+
+			puzzle.puzzle_1_is = puzzle.mouse_is_box({x:BlockPuzzle_X, y:BlockPuzzle_Y}, {p1:(0*0),   p2:(132*1), p3:0, p4:132});
+			puzzle.puzzle_2_is = puzzle.mouse_is_box({x:BlockPuzzle_X, y:BlockPuzzle_Y}, {p1:(132*1), p2:(132*2), p3:0, p4:132});
+			puzzle.puzzle_3_is = puzzle.mouse_is_box({x:BlockPuzzle_X, y:BlockPuzzle_Y}, {p1:(132*2), p2:(132*3), p3:0, p4:132});
+
+			if(puzzle.puzzle_1_is == true){ puzzle.board_next_item[0][3] = true; }
+			if(puzzle.puzzle_2_is == true){ puzzle.board_next_item[1][3] = true; }
+			if(puzzle.puzzle_3_is == true){ puzzle.board_next_item[2][3] = true; }
+
+			PuzzleBoxHTMLControl();
+			
+        });
+		
+        canvas.addEventListener('mouseup', (event) => {
+			mouse_click = false;
+			
+			mouseX = event.clientX - canvas.getBoundingClientRect().left;
+			mouseY = canvas.height - (event.clientY - canvas.getBoundingClientRect().top);
+			
+			TahtaX = (mouseX - TahtaPozisyonX); // 50 > translate fark
+			TahtaY = (mouseY - TahtaPozisyonY); // 50 > translate fark
+			
+			GetMapIndices(TahtaX, TahtaY);
+			
+			puzzle.puzzle_1_is = false;
+			puzzle.puzzle_2_is = false;
+			puzzle.puzzle_3_is = false;
+			
+			puzzle.board_next_item[0][3] = false;
+			puzzle.board_next_item[1][3] = false;
+			puzzle.board_next_item[2][3] = false;
+
+        });
+		
+        canvas.addEventListener('mousemove', (event) => {
+		
+			// opengl es e göre mouse coordinatı en alt sol dan başlayacak
+			mouseX = event.clientX - canvas.getBoundingClientRect().left;
+			mouseY = canvas.height - (event.clientY - canvas.getBoundingClientRect().top);
+
+			TahtaX = (mouseX - TahtaPozisyonX); // 50 > translate fark
+			TahtaY = (mouseY - TahtaPozisyonY); // 50 > translate fark
+			
+			BlockPuzzle_X = (mouseX-BlokPozisyonX);
+			BlockPuzzle_Y = (mouseY-BlokPozisyonY)*-1;
+
+			PuzzleBoxHTMLControl();
+
+        });
+		
+		function PuzzleBoxHTMLControl(){
+		
+			window.document.getElementById("puzzle_1_coordinate").innerText = "("+132+","+132+")"+(BlockPuzzle_X-(132*0))+","+BlockPuzzle_Y;
+			window.document.getElementById("puzzle_1_coordinate").style.background = (puzzle.puzzle_1_is == true ? 'green' : puzzle.board_next_item[0][1]);
+			
+			window.document.getElementById("puzzle_2_coordinate").innerText = "("+132+","+132+")"+(BlockPuzzle_X-(132*1))+","+BlockPuzzle_Y;
+			window.document.getElementById("puzzle_2_coordinate").style.background = (puzzle.puzzle_2_is == true ? 'green' : puzzle.board_next_item[1][1]);
+			
+			window.document.getElementById("puzzle_3_coordinate").innerText = "("+132+","+132+")"+(BlockPuzzle_X-(132*2))+","+BlockPuzzle_Y;
+			window.document.getElementById("puzzle_3_coordinate").style.background = (puzzle.puzzle_3_is == true ? 'green' : puzzle.board_next_item[2][1]);
+			
+			window.document.getElementById("mouse_coordinate").innerText = "("+canvas.width+","+canvas.height+")"+mouseX+","+mouseY;
+			window.document.getElementById("tahta_coordinate").innerText = "("+400+","+400+")"+TahtaX+","+TahtaY;
+		
+		}
+
+		function GetMapIndices(terrainZ, TahtaX){
+			var grid = puzzle.get_grid(terrainZ, TahtaX);
+
+			if(grid.gridCenter >= 0 && grid.gridCenter <= 63){
+			
+				var select_tetrimino = puzzle.board_next_item.find(item => item[3] == true);
+				for(var i = 0; i < select_tetrimino[0].length; i++){
+					for(var ii = 0; ii < select_tetrimino[0][i].length; ii++){
+					
+						// parcalar ust ust e binerse tetrimino yerleşimi iptal edilsin
+						if(select_tetrimino[0][i][ii] == 1 && puzzle.board[grid.gridX-i][grid.gridZ+ii] == 0){
+							puzzle.board[grid.gridX-i][grid.gridZ+ii] = 1;
+							puzzle.board_next_item[select_tetrimino[4]][2] = 0;
+						}
+
+					}
+				}
+
+				window.document.getElementById("board_"+grid.gridCenter).style.background = '#cccccc';
+	
+			}
+			
+			if(puzzle.board_next_item.find(item => item[2] == 1) == undefined){ // tas kalmadı
+				puzzle.random_tetrimino();
+			}
+			
+		}
+
+		// Call start
+		(async() => {
+		
+			// Rasgele Tetrimino
+			puzzle.random_tetrimino();
+			
+			window.document.getElementById("puzzle_1").style.background = puzzle.board_next_item[0][1];
+			window.document.getElementById("puzzle_1").innerText = JSON.stringify(puzzle.board_next_item[0][0]);
+			
+			window.document.getElementById("puzzle_2").style.background = puzzle.board_next_item[1][1];
+			window.document.getElementById("puzzle_2").innerText = JSON.stringify(puzzle.board_next_item[1][0]);
+			
+			window.document.getElementById("puzzle_3").style.background = puzzle.board_next_item[2][1];
+			window.document.getElementById("puzzle_3").innerText = JSON.stringify(puzzle.board_next_item[2][0]);
+				
+			// Program Create
+			var Shader_Vertex_Source   = document.querySelector("#terrain-vertex-shader").innerHTML;
+			var Shader_Fragment_Source = document.querySelector("#terrain-fragment-shader").innerHTML;
+			var ShaderProgram          = CreateProgram(gl, Shader_Vertex_Source, Shader_Fragment_Source);
+			
+			// Animation timing
+			let currentAngle;
+			let previousTime = 0.0;
+			let degreesPerSecond = 90.0;
+
+			// Render Start
+			gl.clearColor(184.0 / 255.0, 213.0 / 255.0, 238.0 / 255.0, 1.0);
+			gl.enable(gl.DEPTH_TEST);
+
+			function render(){
+
+				// Tetrimino Tahta Debug
+				var board_view = '';
+				for(var y = 0; y < puzzle.board.length; y++){
+					board_view += '<tr>';
+					for(var x = 0; x < puzzle.board.length; x++){
+						var board_index = ((y*puzzle.board.length)+x);
+						board_view += '<td id="board_'+board_index+'">'+puzzle.board[y][x]+'</td>'; // board[y][x], board_index
+					}
+					board_view += '</tr>';
+				}
+				window.document.getElementById("board").innerHTML = board_view;
+				// Tetrimino Tahta Debug
+			
+				window.document.getElementById("mouse_click").innerText = mouse_click;
+
+				// WebGL Init
+				gl.viewport(0,0,canvas.width,canvas.height);
+				gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+				// ---------------------- GAME ENGINE LOOP ----------------------
+				gl.useProgram(ShaderProgram);
+				
+					mat4.ortho(projectionMatrix, 0, canvas.width, 0, canvas.height, -1, 1);
+					gl.uniformMatrix4fv(gl.getUniformLocation(ShaderProgram, "projectionMatrix"), false, projectionMatrix);
+
+					// Tahtaya Element Ekle
+					//if(mouse_click == true){ GetMapIndices(TahtaX, TahtaY); }
+					
+					// Renklendirme
+					puzzle.AutoColorSelect();
+
+					// Tetrimino Draw
+
+					TetriminoBoxSelectedProgram(0, ShaderProgram, puzzle.board_next_item[0], puzzle.puzzle_1_is, 0, 0);
+					/*------------------------------------------------*/
+					TetriminoBoxSelectedProgram(1, ShaderProgram, puzzle.board_next_item[1], puzzle.puzzle_2_is, (BlokPozisyonX+(132/2)-(25*4/2))*2, 0);
+					/*------------------------------------------------*/
+					TetriminoBoxSelectedProgram(2, ShaderProgram, puzzle.board_next_item[2], puzzle.puzzle_3_is, (BlokPozisyonX+(132/2)-(25*4/2))*4, 0);
+					/*------------------------------------------------*/
+					TetriminoTahtaProgram(ShaderProgram);
+					/*------------------------------------------------*/
+					TetriminoBoxProgram(ShaderProgram);
+					
+					// Tetrimino Draw
+
+				gl.useProgram(null);
+				
+				var x_grid_scanner_result = [];
+				var y_grid_scanner_result = [];
+
+				for(var i = 0; i < 8; i++){
+
+					if(puzzle.board[i].filter(item => item != 0).length == 8){ x_grid_scanner_result.push(i); }
+					
+					var y_grid_one_scan = 0;
+					for(var ii = 0; ii < 8; ii++){
+						if(puzzle.board[ii][i] != 0){y_grid_one_scan++; }
+					}
+					if(y_grid_one_scan == 8){ y_grid_scanner_result.push(i); }
+
+				}
+
+				for(var i = 0; i < x_grid_scanner_result.length; i++){
+					for(var x = 0; x < 8; x++){ puzzle.board[x_grid_scanner_result[i]][x] = 0; }
+				}
+
+				for(var i = 0; i < y_grid_scanner_result.length; i++){
+					for(var x = 0; x < 8; x++){ puzzle.board[x][y_grid_scanner_result[i]] = 0; }
+				}
+				
+				// ---------------------- GAME ENGINE LOOP ----------------------
+
+				requestAnimationFrame((currentTime) => {
+					const deltaAngle = ((currentTime - previousTime) / 1000.0) * degreesPerSecond;
+					currentAngle = (currentAngle + deltaAngle) % 360;
+					previousTime = currentTime;
+					render();
+				});
+			}
+
+			render();
+
+		})();
+		</script>
+	</body>
+</html>
