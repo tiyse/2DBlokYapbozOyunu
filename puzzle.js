@@ -1,3 +1,4 @@
+// test
 // Tetrimino şekilleri ve renkleri
 var shapes = [
 	[[1, 1, 1, 1], [0, 0, 0, 0]], // I
